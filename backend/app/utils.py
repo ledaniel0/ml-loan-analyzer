@@ -1,33 +1,20 @@
-# Helper functions (e.g., PDF parsing)
 import PyPDF2
 from io import BytesIO
-import re
+from app.parsers.bank_parser import BankStatementParser
 
 def process_pdf(file):
-    # Read the PDF content
-    pdf_reader = PyPDF2.PdfReader(BytesIO(file.file.read()))
-    content = ""
-    for page in pdf_reader.pages:
-        content += page.extract_text()
+    """Extract and parse the bank statement."""
+    try:
+        pdf_reader = PyPDF2.PdfReader(BytesIO(file.file.read()))
+        content = ""
+        for page in pdf_reader.pages:
+            content += page.extract_text()
 
-    # Parse the content into transactions
-    transactions = parse_transactions(content)
-    return transactions
+        # Use the parser to process the extracted content
+        parser = BankStatementParser(content)
+        parsed_data = parser.parse()
+        return parsed_data
+    except Exception as e:
+        print(f"Error processing PDF: {e}")
+        raise e
 
-
-def parse_transactions(content):
-    # Example: Parse lines that match transaction patterns
-    lines = content.split("\n")
-    transactions = []
-    transaction_pattern = re.compile(r"(\d{2} \w{3} \d{2})\s+(.+?)\s+(\d+\.\d{2})")
-    
-    for line in lines:
-        match = transaction_pattern.search(line)
-        if match:
-            transactions.append({
-                "date": match.group(1),
-                "description": match.group(2),
-                "amount": float(match.group(3))
-            })
-
-    return transactions

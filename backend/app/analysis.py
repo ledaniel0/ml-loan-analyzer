@@ -1,28 +1,27 @@
-# Core logic for transaction analysis
-def analyze_transactions(transactions):
-    # Initialize totals
-    total_income = 0
-    total_expenses = 0
-    recurring_expenses = {}
+from collections import defaultdict
+from typing import List, Dict, Any
+
+
+def analyze_transactions(transactions: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Analyze the given transactions for insights."""
+    total_income = 0.0
+    total_expenses = 0.0
+    recurring = defaultdict(float)
 
     for txn in transactions:
-        if txn["amount"] > 0:
-            total_income += txn["amount"]
-        else:
-            total_expenses += abs(txn["amount"])
+        if txn["credit"] > 0:
+            total_income += txn["credit"]
+        if txn["debit"] > 0:
+            total_expenses += txn["debit"]
 
-        # Identify recurring transactions
-        description = txn["description"]
-        if description in recurring_expenses:
-            recurring_expenses[description] += abs(txn["amount"])
-        else:
-            recurring_expenses[description] = abs(txn["amount"])
+        # Group by description to find recurring transactions
+        recurring[txn["description"]] += txn["debit"]
 
-    # Sort recurring expenses by total amount
-    sorted_recurring = sorted(recurring_expenses.items(), key=lambda x: x[1], reverse=True)
+    # Sort recurring transactions by total amount
+    recurring_sorted = sorted(recurring.items(), key=lambda x: x[1], reverse=True)
 
     return {
         "total_income": total_income,
         "total_expenses": total_expenses,
-        "recurring_expenses": sorted_recurring[:5]  # Top 5 recurring expenses
+        "recurring_expenses": recurring_sorted[:5],  # Top 5 recurring expenses
     }

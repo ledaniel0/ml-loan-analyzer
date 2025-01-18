@@ -1,0 +1,18 @@
+[
+    {
+        "transaction_date": "01-Apr-2018",
+        "value_date": "01-Apr-2018",
+        "description": "IMPS-MOB/Fund Trf",
+        "debit": 100.0,
+        "credit": 0.0,
+        "balance": 500.0
+    },
+    {
+        "transaction_date": "02-Apr-2018",
+        "value_date": "02-Apr-2018",
+        "description": "Multi-line description",
+        "debit": 50.0,
+        "credit": 100.0,
+        "balance": 450.0
+    }
+]
