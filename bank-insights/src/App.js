@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import axios from "axios";
 import {
   LineChart,
   Line,
@@ -9,7 +10,6 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import axios from "axios";
 
 const STEP = {
   DASHBOARD: "DASHBOARD",
@@ -49,14 +49,14 @@ const App = () => {
       setError("No file selected.");
       return;
     }
-  
+
     setIsLoading(true);
     setError(null);
-  
+
     try {
       const formData = new FormData();
       formData.append("file", uploadedFile);
-  
+
       console.log("Sending request to analyze statement...");
       const response = await axios.post(
         "http://localhost:8000/analyze-statement",
@@ -65,9 +65,9 @@ const App = () => {
           headers: { "Content-Type": "multipart/form-data" },
         }
       );
-  
+
       console.log("Received response:", response.data);
-  
+
       if (response.data?.analysis) {
         setAnalysis(response.data.analysis);
         setCurrentStep(STEP.ANALYSIS_RESULT);
@@ -77,8 +77,8 @@ const App = () => {
     } catch (err) {
       console.error("Error during analysis:", err);
       setError(
-        err.response?.data?.detail || 
-        "Error analyzing file. Please try again."
+        err.response?.data?.detail ||
+          "Error analyzing file. Please try again."
       );
     } finally {
       setIsLoading(false);
@@ -156,17 +156,19 @@ const App = () => {
           {analysis.income_analysis && (
             <p>
               <strong>Total Income:</strong> $
-              {analysis.income_analysis.total_income?.toFixed(2) || 'N/A'}
+              {analysis.income_analysis.total_income?.toFixed(2) || "N/A"}
             </p>
           )}
           {analysis.expense_analysis && (
             <p>
-              <strong>Total Expenses:</strong> ${analysis.expense_analysis.total_expenses.toFixed(2)}
+              <strong>Total Expenses:</strong> $
+              {analysis.expense_analysis.total_expenses?.toFixed(2) || "N/A"}
             </p>
           )}
           {analysis.key_metrics && (
             <p>
-              <strong>Net Flow:</strong> ${analysis.key_metrics.net_flow.toFixed(2)}
+              <strong>Net Flow:</strong> $
+              {analysis.key_metrics.net_flow?.toFixed(2) || "N/A"}
             </p>
           )}
           {analysis.decision && (
@@ -176,10 +178,9 @@ const App = () => {
           )}
           {analysis.confidence_score && (
             <p>
-              <strong>Confidence Score:</strong> {analysis.confidence_score}%
+              <strong>Confidence Score:</strong> {analysis.confidence_score * 100}%
             </p>
           )}
-          {/* If the raw_completion is present instead, show it */}
           {analysis.raw_completion && (
             <div>
               <strong>Raw Completion:</strong> {analysis.raw_completion}
@@ -205,7 +206,9 @@ const App = () => {
       case STEP.ENTER_DATA:
         return (
           <div className="bg-white shadow p-4">
-            <h2 className="text-lg font-semibold mb-4">Upload Bank Statement</h2>
+            <h2 className="text-lg font-semibold mb-4">
+              Upload Bank Statement
+            </h2>
             {renderFileUpload()}
           </div>
         );
@@ -218,22 +221,70 @@ const App = () => {
 
   return (
     <div className="h-screen flex flex-col bg-gray-100">
+      {/* Top Navbar */}
       <nav className="flex items-center justify-between bg-white px-4 py-2 border-b">
-        <div className="font-bold text-xl">Bankly Loan System</div>
-        <button
-          className="px-3 py-1 text-sm bg-white border rounded hidden md:block"
-          onClick={() => setCurrentStep(STEP.DASHBOARD)}
-        >
-          Dashboard
-        </button>
-        <button
-          className="px-3 py-1 text-sm bg-white border rounded hidden md:block"
-          onClick={handleNewApplication}
-        >
-          New Application
-        </button>
+        <div className="flex items-center space-x-4">
+          <div className="font-bold text-xl">Bankly Loan System</div>
+          <button
+            className="px-3 py-1 text-sm bg-white border rounded hidden md:block"
+            onClick={() => setCurrentStep(STEP.DASHBOARD)}
+          >
+            Dashboard
+          </button>
+          <button
+            className="px-3 py-1 text-sm bg-white border rounded hidden md:block"
+            onClick={handleNewApplication}
+          >
+            New Application
+          </button>
+        </div>
+        <div className="flex items-center space-x-4">
+          <input
+            className="border rounded px-2 py-1 text-sm"
+            placeholder="Search..."
+          />
+          <button className="text-gray-600">🔔</button>
+          <button className="bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center text-gray-700">
+            <span className="text-sm">U</span>
+          </button>
+        </div>
       </nav>
-      <main className="flex-1 p-6">{renderMainContent()}</main>
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar */}
+        <aside className="w-64 bg-white border-r p-4 overflow-y-auto hidden md:block">
+          <nav className="space-y-2">
+            <h3 className="text-lg font-semibold mb-2">Loans</h3>
+            <ul className="space-y-1 text-sm">
+              <li><button className="text-gray-600 hover:text-black">Pending Applications</button></li>
+              <li><button className="text-gray-600 hover:text-black">Approved Loans</button></li>
+              <li><button className="text-gray-600 hover:text-black">Denied Loans</button></li>
+              <li><button className="text-gray-600 hover:text-black">Archived Loans</button></li>
+            </ul>
+            <h3 className="text-lg font-semibold mt-6 mb-2">Customers</h3>
+            <ul className="space-y-1 text-sm">
+              <li><button className="text-gray-600 hover:text-black">Customer Directory</button></li>
+              <li><button className="text-gray-600 hover:text-black">Loan History by Customer</button></li>
+            </ul>
+            <h3 className="text-lg font-semibold mt-6 mb-2">Reports</h3>
+            <ul className="space-y-1 text-sm">
+              <li><button className="text-gray-600 hover:text-black">Loan Trends</button></li>
+              <li><button className="text-gray-600 hover:text-black">Approval Rates</button></li>
+              <li><button className="text-gray-600 hover:text-black">Risk Metrics</button></li>
+            </ul>
+            <h3 className="text-lg font-semibold mt-6 mb-2">Settings</h3>
+            <ul className="space-y-1 text-sm">
+              <li><button className="text-gray-600 hover:text-black">User Preferences</button></li>
+              <li><button className="text-gray-600 hover:text-black">Sign Out</button></li>
+            </ul>
+          </nav>
+        </aside>
+
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto p-6">
+          {renderMainContent()}
+        </main>
+      </div>
     </div>
   );
 };
