@@ -6,6 +6,8 @@ import PyPDF2
 from io import BytesIO
 import json
 import logging
+import time
+from botocore.exceptions import ClientError
 
 app = FastAPI()
 
@@ -78,42 +80,55 @@ def analyze_statement_with_bedrock(text: str) -> dict:
             ]
         }
 
-        response = bedrock.invoke_model(
-            modelId="arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0",
-            contentType="application/json",
-            accept="application/json",
-            body=json.dumps(payload),
-        )
+        max_retries = 5
+        backoff_factor = 1  # in seconds
 
-        raw_body = response["body"].read()
-        logging.debug(f"Raw response body bytes: {raw_body}")
-        response_body = json.loads(raw_body)
-        logging.debug(f"Parsed response body: {response_body}")
-
-        # Fallback if "completion" key isn't present
-        analysis = response_body
-
-        # Check if content exists and is a list with at least one item of type text
-        if (
-            isinstance(analysis, dict)
-            and "content" in analysis
-            and isinstance(analysis["content"], list)
-            and len(analysis["content"]) > 0
-            and analysis["content"][0].get("type") == "text"
-        ):
-            content_text = analysis["content"][0]["text"]
+        for attempt in range(max_retries):
             try:
-                # Parse the JSON inside the text field
-                parsed_content = json.loads(content_text)
-                analysis = parsed_content
-            except json.JSONDecodeError:
-                logging.warning(f"Could not parse text content as JSON: {content_text}")
-                # If parsing fails, keep the original analysis with raw content
-        else:
-            logging.warning("Response does not contain expected content structure.")
+                response = bedrock.invoke_model(
+                    modelId="arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    contentType="application/json",
+                    accept="application/json",
+                    body=json.dumps(payload),
+                )
+                # Process response as before
+                raw_body = response["body"].read()
+                response_body = json.loads(raw_body)
+                analysis = response_body
 
-        logging.debug(f"Final parsed analysis: {analysis}")
-        return analysis
+                if (
+                    isinstance(analysis, dict)
+                    and "content" in analysis
+                    and isinstance(analysis["content"], list)
+                    and len(analysis["content"]) > 0
+                    and analysis["content"][0].get("type") == "text"
+                ):
+                    content_text = analysis["content"][0]["text"]
+                    try:
+                        parsed_content = json.loads(content_text)
+                        analysis = parsed_content
+                    except json.JSONDecodeError:
+                        logging.warning(f"Could not parse text content as JSON: {content_text}")
+                else:
+                    logging.warning("Response does not contain expected content structure.")
+
+                return analysis
+
+            except ClientError as e:
+                error_code = e.response['Error']['Code']
+                if error_code == 'ThrottlingException':
+                    wait_time = backoff_factor * (2 ** attempt)
+                    logging.warning(f"ThrottlingException encountered. Retrying in {wait_time} seconds...")
+                    time.sleep(wait_time)
+                else:
+                    logging.error(f"Unexpected ClientError: {e}")
+                    raise
+        
+        # If all retries fail
+        raise HTTPException(
+            status_code=429,
+            detail="Too many requests. Please try again later."
+        )
 
     except Exception as e:
         logging.error(f"Error invoking Bedrock model: {str(e)}")
