@@ -10,6 +10,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { v4 as uuidv4 } from 'uuid';
 
 const STEP = {
   DASHBOARD: "DASHBOARD",
@@ -23,8 +24,9 @@ const App = () => {
   const [file, setFile] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [applications, setApplications] = useState([]);
 
-  // Sample chart data
+  // chart data
   const monthlyIncomeData = [
     { month: "Jan", amount: 3000 },
     { month: "Feb", amount: 3500 },
@@ -71,15 +73,29 @@ const App = () => {
       if (response.data?.analysis) {
         setAnalysis(response.data.analysis);
         setCurrentStep(STEP.ANALYSIS_RESULT);
+
+        const newApplication = {
+          id: uuidv4(),
+          applicationNumber: `APP-${Math.floor(1000 + Math.random() * 9000)}`,
+          date: new Date().toISOString().split('T')[0],
+          status: response.data.analysis.decision === 'Approved' ? 'Approved' : 
+                  response.data.analysis.decision === 'Denied' ? 'Denied' : 'Pending',
+          analysis: response.data.analysis,
+        };
+        setApplications(prev => [newApplication, ...prev]);
       } else {
         setError("Failed to analyze the file. No analysis data received.");
       }
     } catch (err) {
       console.error("Error during analysis:", err);
-      setError(
-        err.response?.data?.detail ||
-          "Error analyzing file. Please try again."
-      );
+      if (err.response?.status === 429) {
+        setError("Too many requests. Please wait a moment and try again.");
+      } else {
+        setError(
+          err.response?.data?.detail ||
+            "Error analyzing file. Please try again."
+        );
+      }
     } finally {
       setIsLoading(false);
     }
@@ -90,7 +106,12 @@ const App = () => {
       <input
         type="file"
         accept=".pdf"
-        className="block"
+        className="block w-full text-sm text-gray-500
+                   file:mr-4 file:py-2 file:px-4
+                   file:rounded file:border-0
+                   file:text-sm file:font-semibold
+                   file:bg-blue-50 file:text-blue-700
+                   hover:file:bg-blue-100"
         onChange={handleFileChange}
         disabled={isLoading}
       />
@@ -103,7 +124,7 @@ const App = () => {
     <div>
       <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
       <div className="flex flex-col lg:flex-row gap-4 mb-4">
-        <div className="bg-white shadow p-4 flex-1">
+        <div className="bg-white shadow p-4 flex-1 rounded">
           <h2 className="text-sm font-semibold mb-2">Average Monthly Income</h2>
           <ResponsiveContainer height={200}>
             <LineChart data={monthlyIncomeData}>
@@ -116,7 +137,7 @@ const App = () => {
             </LineChart>
           </ResponsiveContainer>
         </div>
-        <div className="bg-white shadow p-4 flex-1">
+        <div className="bg-white shadow p-4 flex-1 rounded">
           <h2 className="text-sm font-semibold mb-2">Average Monthly Expenses</h2>
           <ResponsiveContainer height={200}>
             <LineChart data={monthlyExpenseData}>
@@ -130,60 +151,91 @@ const App = () => {
           </ResponsiveContainer>
         </div>
       </div>
+
       <div className="mb-4">
         <h2 className="text-lg font-semibold mb-2">Recent Loan Applications</h2>
-        <div className="bg-white shadow p-4 mb-2 flex items-center justify-between">
-          <div>
-            <div className="font-bold">Application #1234</div>
-            <div className="text-sm text-gray-500">Date: 2024-06-10</div>
+        {applications.length === 0 ? (
+          <div className="bg-white shadow p-4 rounded">
+            <p className="text-gray-600">No recent applications.</p>
           </div>
-          <span className="inline-block px-2 py-1 text-sm bg-yellow-100 text-yellow-800 rounded">
-            Pending
-          </span>
-        </div>
+        ) : (
+          applications.map(app => (
+            <div key={app.id} className="bg-white shadow p-4 mb-2 rounded flex items-center justify-between">
+              <div>
+                <div className="font-bold">{app.applicationNumber}</div>
+                <div className="text-sm text-gray-500">Date: {app.date}</div>
+              </div>
+              <span
+                className={`inline-block px-3 py-1 text-sm font-semibold rounded ${
+                  app.status === 'Approved'
+                    ? 'bg-green-100 text-green-800'
+                    : app.status === 'Denied'
+                    ? 'bg-red-100 text-red-800'
+                    : 'bg-yellow-100 text-yellow-800'
+                }`}
+              >
+                {app.status}
+              </span>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
 
   const renderAnalysisResult = () => (
-    <div className="bg-white shadow p-4">
-      <h2 className="text-lg font-semibold mb-4">Loan Analysis Result</h2>
+    <div className="bg-white shadow p-6 rounded">
+      <h2 className="text-2xl font-semibold mb-6">Loan Analysis Result</h2>
       {analysis ? (
-        <div className="space-y-2">
-          <pre className="text-sm bg-gray-100 p-2 rounded">
-            {JSON.stringify(analysis, null, 2)}
-          </pre>
-          {analysis.income_analysis && (
-            <p>
-              <strong>Total Income:</strong> $
-              {analysis.income_analysis.total_income?.toFixed(2) || "N/A"}
-            </p>
-          )}
-          {analysis.expense_analysis && (
-            <p>
-              <strong>Total Expenses:</strong> $
-              {analysis.expense_analysis.total_expenses?.toFixed(2) || "N/A"}
-            </p>
-          )}
-          {analysis.key_metrics && (
-            <p>
-              <strong>Net Flow:</strong> $
-              {analysis.key_metrics.net_flow?.toFixed(2) || "N/A"}
-            </p>
-          )}
-          {analysis.decision && (
-            <p>
-              <strong>Loan Decision:</strong> {analysis.decision}
-            </p>
-          )}
-          {analysis.confidence_score && (
-            <p>
-              <strong>Confidence Score:</strong> {analysis.confidence_score * 100}%
-            </p>
-          )}
-          {analysis.raw_completion && (
+        <div className="space-y-6">
+          {/* Loan Decision - Emphasized Section */}
+          <div className="p-6 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-lg shadow-lg flex items-center justify-between">
             <div>
-              <strong>Raw Completion:</strong> {analysis.raw_completion}
+              <h3 className="text-xl font-bold">Loan Decision</h3>
+              <p className="text-lg mt-2">{analysis.decision || "N/A"}</p>
+            </div>
+            <div className="text-4xl font-extrabold">
+              {analysis.decision === 'Approved' && '✅'}
+              {analysis.decision === 'Denied' && '❌'}
+              {analysis.decision === 'Pending' && '⏳'}
+            </div>
+          </div>
+
+          <div className="p-4 bg-yellow-50 rounded shadow">
+            <h3 className="text-lg font-medium text-yellow-800">Confidence Score</h3>
+            <div className="mt-2">
+              <p><strong>Confidence Level:</strong> {analysis.confidence_score ? `${(analysis.confidence_score * 100).toFixed(2)}%` : "N/A"}</p>
+            </div>
+          </div>
+
+          <div className="p-4 bg-blue-50 rounded shadow">
+            <h3 className="text-lg font-medium text-blue-800">Income Analysis</h3>
+            <div className="mt-2">
+              <p><strong>Total Income:</strong> ${analysis.income_analysis?.total_income?.toFixed(2) || "N/A"}</p>
+              <p><strong>Income Stability:</strong> {analysis.income_analysis?.income_stability || "N/A"}</p>
+            </div>
+          </div>
+
+          <div className="p-4 bg-red-50 rounded shadow">
+            <h3 className="text-lg font-medium text-red-800">Expense Analysis</h3>
+            <div className="mt-2">
+              <p><strong>Total Expenses:</strong> ${analysis.expense_analysis?.total_expenses?.toFixed(2) || "N/A"}</p>
+            </div>
+          </div>
+
+          <div className="p-4 bg-green-50 rounded shadow">
+            <h3 className="text-lg font-medium text-green-800">Key Metrics</h3>
+            <div className="mt-2">
+              <p><strong>Net Flow:</strong> ${analysis.key_metrics?.net_flow?.toFixed(2) || "N/A"}</p>
+            </div>
+          </div>
+
+          {analysis.raw_completion && (
+            <div className="p-4 bg-gray-50 rounded shadow">
+              <h3 className="text-lg font-medium text-gray-800">Additional Information</h3>
+              <div className="mt-2">
+                <p>{analysis.raw_completion}</p>
+              </div>
             </div>
           )}
         </div>
@@ -192,7 +244,7 @@ const App = () => {
       )}
       <button
         onClick={() => setCurrentStep(STEP.DASHBOARD)}
-        className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        className="mt-6 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
       >
         Return to Dashboard
       </button>
@@ -205,8 +257,8 @@ const App = () => {
         return renderDashboard();
       case STEP.ENTER_DATA:
         return (
-          <div className="bg-white shadow p-4">
-            <h2 className="text-lg font-semibold mb-4">
+          <div className="bg-white shadow p-6 rounded">
+            <h2 className="text-2xl font-semibold mb-4">
               Upload Bank Statement
             </h2>
             {renderFileUpload()}
@@ -221,18 +273,17 @@ const App = () => {
 
   return (
     <div className="h-screen flex flex-col bg-gray-100">
-      {/* Top Navbar */}
-      <nav className="flex items-center justify-between bg-white px-4 py-2 border-b">
+      <nav className="flex items-center justify-between bg-white px-4 py-2 border-b shadow">
         <div className="flex items-center space-x-4">
-          <div className="font-bold text-xl">Bankly Loan System</div>
+          <div className="font-bold text-xl">Bankly</div>
           <button
-            className="px-3 py-1 text-sm bg-white border rounded hidden md:block"
+            className="px-3 py-1 text-sm bg-white border rounded hover:bg-gray-100 hidden md:block"
             onClick={() => setCurrentStep(STEP.DASHBOARD)}
           >
             Dashboard
           </button>
           <button
-            className="px-3 py-1 text-sm bg-white border rounded hidden md:block"
+            className="px-3 py-1 text-sm bg-white border rounded hover:bg-gray-100 hidden md:block"
             onClick={handleNewApplication}
           >
             New Application
@@ -243,44 +294,42 @@ const App = () => {
             className="border rounded px-2 py-1 text-sm"
             placeholder="Search..."
           />
-          <button className="text-gray-600">🔔</button>
-          <button className="bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center text-gray-700">
+          <button className="text-gray-600" title="Notifications">🔔</button>
+          <button className="bg-gray-200 rounded-full h-8 w-8 flex items-center justify-center text-gray-700" title="User Profile">
             <span className="text-sm">U</span>
           </button>
         </div>
       </nav>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
         <aside className="w-64 bg-white border-r p-4 overflow-y-auto hidden md:block">
           <nav className="space-y-2">
             <h3 className="text-lg font-semibold mb-2">Loans</h3>
             <ul className="space-y-1 text-sm">
-              <li><button className="text-gray-600 hover:text-black">Pending Applications</button></li>
-              <li><button className="text-gray-600 hover:text-black">Approved Loans</button></li>
-              <li><button className="text-gray-600 hover:text-black">Denied Loans</button></li>
-              <li><button className="text-gray-600 hover:text-black">Archived Loans</button></li>
+              <li><button className="w-full text-left text-gray-600 hover:text-black">Pending Applications</button></li>
+              <li><button className="w-full text-left text-gray-600 hover:text-black">Approved Loans</button></li>
+              <li><button className="w-full text-left text-gray-600 hover:text-black">Denied Loans</button></li>
+              <li><button className="w-full text-left text-gray-600 hover:text-black">Archived Loans</button></li>
             </ul>
             <h3 className="text-lg font-semibold mt-6 mb-2">Customers</h3>
             <ul className="space-y-1 text-sm">
-              <li><button className="text-gray-600 hover:text-black">Customer Directory</button></li>
-              <li><button className="text-gray-600 hover:text-black">Loan History by Customer</button></li>
+              <li><button className="w-full text-left text-gray-600 hover:text-black">Customer Directory</button></li>
+              <li><button className="w-full text-left text-gray-600 hover:text-black">Loan History by Customer</button></li>
             </ul>
             <h3 className="text-lg font-semibold mt-6 mb-2">Reports</h3>
             <ul className="space-y-1 text-sm">
-              <li><button className="text-gray-600 hover:text-black">Loan Trends</button></li>
-              <li><button className="text-gray-600 hover:text-black">Approval Rates</button></li>
-              <li><button className="text-gray-600 hover:text-black">Risk Metrics</button></li>
+              <li><button className="w-full text-left text-gray-600 hover:text-black">Loan Trends</button></li>
+              <li><button className="w-full text-left text-gray-600 hover:text-black">Approval Rates</button></li>
+              <li><button className="w-full text-left text-gray-600 hover:text-black">Risk Metrics</button></li>
             </ul>
             <h3 className="text-lg font-semibold mt-6 mb-2">Settings</h3>
             <ul className="space-y-1 text-sm">
-              <li><button className="text-gray-600 hover:text-black">User Preferences</button></li>
-              <li><button className="text-gray-600 hover:text-black">Sign Out</button></li>
+              <li><button className="w-full text-left text-gray-600 hover:text-black">User Preferences</button></li>
+              <li><button className="w-full text-left text-gray-600 hover:text-black">Sign Out</button></li>
             </ul>
           </nav>
         </aside>
 
-        {/* Main Content */}
         <main className="flex-1 overflow-y-auto p-6">
           {renderMainContent()}
         </main>
